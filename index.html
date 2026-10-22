@@ -50,11 +50,12 @@
             background: #334155;
             color: white;
             border: none;
-            padding: 10px 4px;
+            padding: 8px 2px;
             border-radius: 6px;
             cursor: pointer;
             font-weight: bold;
-            font-size: 13px;
+            font-size: 12px;
+            text-align: center;
         }
         .symbol-btn.active, .tf-btn.active {
             background: #0284c7;
@@ -88,11 +89,12 @@
 <div class="container">
     <h2>Canlı Piyasa Paneli</h2>
     
-    <!-- Parite Seçim Butonları -->
+    <!-- Parite Seçim Butonları (BTC, EUR/USD, Solana) -->
     <div class="card" style="padding: 10px; margin-bottom: 10px;">
         <div class="symbol-container" style="margin-bottom: 0;">
             <button class="symbol-btn active" onclick="setSymbol('BTCUSDT', 'BINANCE:BTCUSDT', this)">BTC/USDT</button>
             <button class="symbol-btn" onclick="setSymbol('EURUSD', 'FX:EURUSD', this)">EUR/USD</button>
+            <button class="symbol-btn" onclick="setSymbol('SOLUSDT', 'BINANCE:SOLUSDT', this)">Solana (OTC)</button>
         </div>
     </div>
 
@@ -167,14 +169,7 @@
     // Canlı Fiyat Çekme
     async function fetchPrice() {
         try {
-            let url = currentSymbol === 'BTCUSDT' 
-                ? 'https://api.binance.com/api/v3/ticker/price?symbol=BTCUSDT'
-                : 'https://api.binance.com/api/v3/ticker/price?symbol=EURUSDT'; // Alternatif veya genel API yapısı
-            
-            // EUR/USD için Binance'te EURUSDT paritesi bulunmayabilir, bu durumda genel bir API veya alternatif endpoint kullanılabilir. 
-            // Binance spot piyasasında EURUSDT genellikle yoktur, fakat test amaçlı simüle edebiliriz veya forex verisi çekebiliriz.
             if(currentSymbol === 'EURUSD') {
-                // Forex EURUSD için yaklaşık bir simülasyon veya public API
                 let res = await fetch('https://api.exchangerate-api.com/v4/latest/EUR');
                 let data = await res.json();
                 let price = data.rates.USD.toFixed(4);
@@ -196,7 +191,7 @@
         resultDiv.style.display = "block";
         
         let isBuy = Math.random() > 0.5;
-        let symbolText = currentSymbol === 'BTCUSDT' ? 'BTC/USDT' : 'EUR/USD';
+        let symbolText = currentSymbol === 'BTCUSDT' ? 'BTC/USDT' : (currentSymbol === 'EURUSD' ? 'EUR/USD' : 'Solana (OTC)');
 
         if(isBuy) {
             resultDiv.className = "signal-result signal-buy";
