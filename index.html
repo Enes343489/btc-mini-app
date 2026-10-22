@@ -167,22 +167,6 @@
         return emaArray;
     }
 
-    function calculateSMA(data, period) {
-        let smaArray = [];
-        for (let i = 0; i < data.length; i++) {
-            if (i < period - 1) {
-                smaArray.push(null);
-            } else {
-                let sum = 0;
-                for (let j = 0; j < period; j++) {
-                    sum += data[i - j];
-                }
-                smaArray.push(sum / period);
-            }
-        }
-        return smaArray;
-    }
-
     function calculateRSI(closes, period = 14) {
         let gains = 0;
         let losses = 0;
@@ -235,8 +219,6 @@
             let closes = rows.map(r => parseFloat(r[4]));
             
             let rsiArr = calculateRSI(closes, 14);
-            let ema20Arr = calculateEMA(closes, 20);
-            let sma50Arr = calculateSMA(closes, 50);
 
             let ema12Arr = calculateEMA(closes, 12);
             let ema26Arr = calculateEMA(closes, 26);
@@ -247,31 +229,22 @@
             let macdSignalArr = calculateEMA(macdArr, 9);
 
             let curIdx = closes.length - 1;
-            let prevIdx = closes.length - 2;
-
             let curRsi = rsiArr[curIdx];
-            let curEma20 = ema20Arr[curIdx];
-            let curSma50 = sma50Arr[curIdx];
-            
-            let prevMacd = macdArr[prevIdx];
-            let prevSignal = macdSignalArr[prevIdx];
             let curMacd = macdArr[curIdx];
             let curSignal = macdSignalArr[curIdx];
 
-            let bullishCross = (prevMacd <= prevSignal && curMacd > curSignal);
-            let bearishCross = (prevMacd >= prevSignal && curMacd < curSignal);
-
             resultDiv.style.display = "block";
 
-            if (curRsi < 30 && curEma20 > curSma50 && bullishCross) {
+            // Esnetilmiş Kurallar (Test için daha kolay AL/SAT üretir)
+            if (curRsi < 55 && curMacd >= curSignal) {
                 resultDiv.className = "signal-result signal-buy";
-                resultDiv.innerHTML = "🟢 <b>AL (YÜKSELİŞ) KOŞULU OLUŞTU!</b><br>Zaman Dilimi: " + currentApiTf + "<br>RSI: " + curRsi.toFixed(2) + " (Aşırı Satım)<br>MACD Kesişimi Yukarı Yönlü";
-            } else if (curRsi > 70 && curEma20 < curSma50 && bearishCross) {
+                resultDiv.innerHTML = "🟢 <b>AL (YÜKSELİŞ) EĞİLİMİ TESPİT EDİLDİ!</b><br>Zaman Dilimi: " + currentApiTf + "<br>RSI: " + curRsi.toFixed(2) + "<br>MACD Pozitif / Artış Eğiliminde";
+            } else if (curRsi >= 45 && curMacd < curSignal) {
                 resultDiv.className = "signal-result signal-sell";
-                resultDiv.innerHTML = "🔴 <b>SAT (DÜŞÜŞ) KOŞULU OLUŞTU!</b><br>Zaman Dilimi: " + currentApiTf + "<br>RSI: " + curRsi.toFixed(2) + " (Aşırı Alım)<br>MACD Kesişimi Aşağı Yönlü";
+                resultDiv.innerHTML = "🔴 <b>SAT (DÜŞÜŞ) EĞİLİMİ TESPİT EDİLDİ!</b><br>Zaman Dilimi: " + currentApiTf + "<br>RSI: " + curRsi.toFixed(2) + "<br>MACD Negatif / Azalış Eğiliminde";
             } else {
                 resultDiv.className = "signal-result signal-neutral";
-                resultDiv.innerHTML = "🟡 <b>NET AL/SAT KOŞULU YOK</b><br>Zaman Dilimi: " + currentApiTf + "<br>RSI: " + curRsi.toFixed(2) + " | EMA/SMA ve MACD şartları henüz tam birleşmedi.";
+                resultDiv.innerHTML = "🟡 <b>PİYASA NÖTR</b><br>Zaman Dilimi: " + currentApiTf + "<br>RSI: " + curRsi.toFixed(2) + " | Karar aşamasında.";
             }
 
         } catch (e) {
