@@ -1,359 +1,219 @@
 <!DOCTYPE html>
-
 <html lang="tr">
-
 <head>
-
     <meta charset="UTF-8">
-
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-
-    <title>BTC/USDT Sinyal Paneli</title>
-
+    <title>Kripto & Parite Sinyal Paneli</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
-
     <style>
-
         body {
-
             background-color: #0f172a;
-
             color: #f8fafc;
-
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-
             margin: 0;
-
             padding: 16px;
-
             display: flex;
-
             flex-direction: column;
-
             align-items: center;
-
         }
-
         .container {
-
             width: 100%;
-
             max-width: 400px;
-
         }
-
         h2 {
-
             text-align: center;
-
             margin-bottom: 10px;
-
             font-size: 20px;
-
             color: #38bdf8;
-
         }
-
         .card {
-
             background: #1e293b;
-
             border-radius: 12px;
-
             padding: 16px;
-
             margin-bottom: 16px;
-
             box-shadow: 0 4px 6px rgba(0,0,0,0.3);
-
         }
-
         .price-box {
-
             font-size: 24px;
-
             font-weight: bold;
-
             text-align: center;
-
             color: #4ade80;
-
             margin-bottom: 10px;
-
         }
-
-        .btn-container {
-
+        .symbol-container, .btn-container {
             display: flex;
-
             gap: 6px;
-
             margin-bottom: 12px;
-
         }
-
-        .tf-btn {
-
+        .symbol-btn, .tf-btn {
             flex: 1;
-
             background: #334155;
-
             color: white;
-
             border: none;
-
-            padding: 8px 4px;
-
+            padding: 10px 4px;
             border-radius: 6px;
-
             cursor: pointer;
-
             font-weight: bold;
-
             font-size: 13px;
-
         }
-
-        .tf-btn.active {
-
+        .symbol-btn.active, .tf-btn.active {
             background: #0284c7;
-
         }
-
         .signal-btn {
-
             width: 100%;
-
             background: #2563eb;
-
             color: white;
-
             border: none;
-
             padding: 12px;
-
             border-radius: 8px;
-
             font-size: 16px;
-
             font-weight: bold;
-
             cursor: pointer;
-
             margin-top: 10px;
-
         }
-
         .signal-result {
-
             margin-top: 12px;
-
             padding: 10px;
-
             border-radius: 6px;
-
             text-align: center;
-
             font-weight: bold;
-
             display: none;
-
         }
-
         .signal-buy { background: #166534; color: #4ade80; }
-
         .signal-sell { background: #991b1b; color: #f87171; }
-
     </style>
-
 </head>
-
 <body>
 
-
-
 <div class="container">
-
-    <h2>BTC / USDT Canlı Takip</h2>
-
+    <h2>Canlı Piyasa Paneli</h2>
     
-
-    <div class="card">
-
-        <div class="price-box" id="btc-price">Yükleniyor...</div>
-
-        <div class="btn-container">
-
-            <button class="tf-btn active" onclick="setTf('1m')">1D</button>
-
-            <button class="tf-btn" onclick="setTf('3m')">3D</button>
-
-            <button class="tf-btn" onclick="setTf('5m')">5D</button>
-
-            <button class="tf-btn" onclick="setTf('15m')">15D</button>
-
+    <!-- Parite Seçim Butonları -->
+    <div class="card" style="padding: 10px; margin-bottom: 10px;">
+        <div class="symbol-container" style="margin-bottom: 0;">
+            <button class="symbol-btn active" onclick="setSymbol('BTCUSDT', 'BINANCE:BTCUSDT', this)">BTC/USDT</button>
+            <button class="symbol-btn" onclick="setSymbol('EURUSD', 'FX:EURUSD', this)">EUR/USD</button>
         </div>
-
-        
-
-        <!-- TradingView Grafik Alanı -->
-
-        <div id="tradingview_widget" style="width: 100%; height: 300px;"></div>
-
     </div>
-
-
 
     <div class="card">
-
-        <button class="signal-btn" onclick="generateSignal()">Sinyal Oluştur</button>
-
-        <div id="signalResult" class="signal-result"></div>
-
+        <div class="price-box" id="btc-price">Yükleniyor...</div>
+        
+        <!-- Zaman Dilimi Butonları (1m, 3m, 5m, 15m) -->
+        <div class="btn-container">
+            <button class="tf-btn active" onclick="setTf('1', '1m', this)">1D</button>
+            <button class="tf-btn" onclick="setTf('3', '3m', this)">3D</button>
+            <button class="tf-btn" onclick="setTf('5', '5m', this)">5D</button>
+            <button class="tf-btn" onclick="setTf('15', '15m', this)">15D</button>
+        </div>
+        
+        <!-- TradingView Grafik Alanı -->
+        <div id="tradingview_widget" style="width: 100%; height: 300px;"></div>
     </div>
 
+    <div class="card">
+        <button class="signal-btn" onclick="generateSignal()">Sinyal Oluştur</button>
+        <div id="signalResult" class="signal-result"></div>
+    </div>
 </div>
 
-
-
 <script src="https://s3.tradingview.com/tv.js"></script>
-
 <script>
+    let currentTvInterval = "1"; 
+    let currentApiInterval = "1m";
+    let currentSymbol = "BTCUSDT";
+    let currentTvSymbol = "BINANCE:BTCUSDT";
 
-    let currentTf = "1"; // TradingView için 1 = 1m
-
-
-
-    function initChart(tf) {
-
+    function initChart(tvInterval, tvSymbol) {
         document.getElementById("tradingview_widget").innerHTML = "";
-
         new TradingView.widget({
-
             "width": "100%",
-
             "height": "300",
-
-            "symbol": "BINANCE:BTCUSDT",
-
-            "interval": tf,
-
+            "symbol": tvSymbol,
+            "interval": tvInterval,
             "timezone": "Etc/UTC",
-
             "theme": "dark",
-
             "style": "1",
-
             "locale": "tr",
-
             "toolbar_bg": "#f1f3f6",
-
             "enable_publishing": false,
-
             "hide_top_toolbar": true,
-
             "save_image": false,
-
             "container_id": "tradingview_widget"
-
         });
-
     }
 
+    function setSymbol(apiSym, tvSym, btn) {
+        document.querySelectorAll('.symbol-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        
+        currentSymbol = apiSym;
+        currentTvSymbol = tvSym;
+        
+        initChart(currentTvInterval, currentTvSymbol);
+        fetchPrice();
+    }
 
-
-    function setTf(tfStr) {
-
+    function setTf(tvTf, apiTf, btn) {
         document.querySelectorAll('.tf-btn').forEach(b => b.classList.remove('active'));
-
-        event.target.classList.add('active');
-
+        btn.classList.add('active');
         
-
-        if(tfStr === '1m') currentTf = '1';
-
-        if(tfStr === '3m') currentTf = '3';
-
-        if(tfStr === '5m') currentTf = '5';
-
-        if(tfStr === '15m') currentTf = '15';
-
+        currentTvInterval = tvTf;
+        currentApiInterval = apiTf;
         
-
-        initChart(currentTf);
-
+        initChart(currentTvInterval, currentTvSymbol);
     }
 
-
-
-    // Canlı Fiyat Çekme (Binance API)
-
+    // Canlı Fiyat Çekme
     async function fetchPrice() {
-
         try {
+            let url = currentSymbol === 'BTCUSDT' 
+                ? 'https://api.binance.com/api/v3/ticker/price?symbol=BTCUSDT'
+                : 'https://api.binance.com/api/v3/ticker/price?symbol=EURUSDT'; // Alternatif veya genel API yapısı
+            
+            // EUR/USD için Binance'te EURUSDT paritesi bulunmayabilir, bu durumda genel bir API veya alternatif endpoint kullanılabilir. 
+            // Binance spot piyasasında EURUSDT genellikle yoktur, fakat test amaçlı simüle edebiliriz veya forex verisi çekebiliriz.
+            if(currentSymbol === 'EURUSD') {
+                // Forex EURUSD için yaklaşık bir simülasyon veya public API
+                let res = await fetch('https://api.exchangerate-api.com/v4/latest/EUR');
+                let data = await res.json();
+                let price = data.rates.USD.toFixed(4);
+                document.getElementById('btc-price').innerText = `$${price} (Forex)`;
+                return;
+            }
 
-            let res = await fetch('https://api.binance.com/api/v3/ticker/price?symbol=BTCUSDT');
-
+            let res = await fetch('https://api.binance.com/api/v3/ticker/price?symbol=' + currentSymbol);
             let data = await res.json();
-
             let price = parseFloat(data.price).toLocaleString('en-US', {minimumFractionDigits: 2});
-
             document.getElementById('btc-price').innerText = `$${price}`;
-
         } catch(e) {
-
-            console.log("Fiyat alınamadı");
-
+            document.getElementById('btc-price').innerText = "Fiyat Alınamadı";
         }
-
     }
-
-
 
     function generateSignal() {
-
         let resultDiv = document.getElementById('signalResult');
-
         resultDiv.style.display = "block";
-
         
-
         let isBuy = Math.random() > 0.5;
+        let symbolText = currentSymbol === 'BTCUSDT' ? 'BTC/USDT' : 'EUR/USD';
 
         if(isBuy) {
-
             resultDiv.className = "signal-result signal-buy";
-
-            resultDiv.innerHTML = "🟢 YÜKSELİŞ (AL) SİNYALİ OLUŞTU!";
-
+            resultDiv.innerHTML = `🟢 ${symbolText} (${currentApiInterval}) - YÜKSELİŞ (AL) SİNYALİ!`;
         } else {
-
             resultDiv.className = "signal-result signal-sell";
-
-            resultDiv.innerHTML = "🔴 DÜŞÜŞ (SAT) SİNYALİ OLUŞTU!";
-
+            resultDiv.innerHTML = `🔴 ${symbolText} (${currentApiInterval}) - DÜŞÜŞ (SAT) SİNYALİ!`;
         }
-
     }
 
-
-
-    initChart("1");
-
+    initChart("1", "BINANCE:BTCUSDT");
     setInterval(fetchPrice, 3000);
-
     fetchPrice();
 
-
-
     let tg = window.Telegram.WebApp;
-
     tg.expand();
-
 </script>
 
-
-
 </body>
-
 </html>
