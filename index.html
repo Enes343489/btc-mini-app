@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BTC/USDT Sinyal Paneli</title>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <style>
+        body {
+            background-color: #0f172a;
+            color: #f8fafc;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            margin: 0;
+            padding: 16px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        .container {
+            width: 100%;
+            max-width: 400px;
+        }
+        h2 {
+            text-align: center;
+            margin-bottom: 10px;
+            font-size: 20px;
+            color: #38bdf8;
+        }
+        .card {
+            background: #1e293b;
+            border-radius: 12px;
+            padding: 16px;
+            margin-bottom: 16px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+        }
+        .price-box {
+            font-size: 24px;
+            font-weight: bold;
+            text-align: center;
+            color: #4ade80;
+            margin-bottom: 10px;
+        }
+        .btn-container {
+            display: flex;
+            gap: 6px;
+            margin-bottom: 12px;
+        }
+        .tf-btn {
+            flex: 1;
+            background: #334155;
+            color: white;
+            border: none;
+            padding: 8px 4px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: bold;
+            font-size: 13px;
+        }
+        .tf-btn.active {
+            background: #0284c7;
+        }
+        .signal-btn {
+            width: 100%;
+            background: #2563eb;
+            color: white;
+            border: none;
+            padding: 12px;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            margin-top: 10px;
+        }
+        .signal-btn:disabled {
+            background: #475569;
+            cursor: not-allowed;
+        }
+        .signal-result {
+            margin-top: 12px;
+            padding: 12px;
+            border-radius: 6px;
+            text-align: center;
+            font-weight: bold;
+            display: none;
+            font-size: 14px;
+            line-height: 1.4;
+        }
+        .signal-buy { background: #166534; color: #4ade80; }
+        .signal-sell { background: #991b1b; color: #f87171; }
+        .signal-neutral { background: #334155; color: #cbd5e1; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h2>BTC / USDT Canlı Takip</h2>
+    
+    <div class="card">
+        <div class="price-box" id="btc-price">Yükleniyor...</div>
+        <div class="btn-container">
+            <button class="tf-btn active" onclick="setTf('1m', '1')">1D</button>
+            <button class="tf-btn" onclick="setTf('3m', '3')">3D</button>
+            <button class="tf-btn" onclick="setTf('5m', '5')">5D</button>
+            <button class="tf-btn" onclick="setTf('15m', '15')">15D</button>
+        </div>
+        
+        <!-- TradingView Grafik Alanı -->
+        <div id="tradingview_widget" style="width: 100%; height: 300px;"></div>
+    </div>
+
+    <div class="card">
+        <button id="sigBtn" class="signal-btn" onclick="generateRealSignal()">Canlı Sinyal Oluştur</button>
+        <div id="signalResult" class="signal-result"></div>
+    </div>
+</div>
+
+<script src="https://s3.tradingview.com/tv.js"></script>
+<script>
+    let currentTvTf = "1"; 
+    let currentApiTf = "1m"; 
+
+    function initChart(tf) {
+        document.getElementById("tradingview_widget").innerHTML = "";
+        new TradingView.widget({
+            "width": "100%",
+            "height": "300",
+            "symbol": "BINANCE:BTCUSDT",
+            "interval": tf,
+            "timezone": "Etc/UTC",
+            "theme": "dark",
+            "style": "1",
+            "locale": "tr",
+            "toolbar_bg": "#f1f3f6",
+            "enable_publishing": false,
+            "hide_top_toolbar": true,
+            "save_image": false,
+            "container_id": "tradingview_widget"
+        });
+    }
+
+    function setTf(apiTf, tvTf) {
+        document.querySelectorAll('.tf-btn').forEach(b => b.classList.remove('active'));
+        event.target.classList.add('active');
+        
+        currentApiTf = apiTf;
+        currentTvTf = tvTf;
+        initChart(currentTvTf);
+    }
+
+    async function fetchPrice() {
+        try {
+            let res = await fetch('https://api.binance.com/api/v3/ticker/price?symbol=BTCUSDT');
+            let data = await res.json();
+            let price = parseFloat(data.price).toLocaleString('en-US', {minimumFractionDigits: 2});
+            document.getElementById('btc-price').innerText = `$${price}`;
+        } catch(e) {
+            console.log("Fiyat alınamadı");
+        }
+    }
+
+    function calculateEMA(data, period) {
+        let k = 2 / (period + 1);
+        let emaArray = [data[0]];
+        for (let i = 1; i < data.length; i++) {
+            emaArray.push((data[i] * k) + (emaArray[i - 1] * (1 - k)));
+        }
+        return emaArray;
+    }
+
+    function calculateSMA(data, period) {
+        let smaArray = [];
+        for (let i = 0; i < data.length; i++) {
+            if (i < period - 1) {
+                smaArray.push(null);
+            } else {
+                let sum = 0;
+                for (let j = 0; j < period; j++) {
+                    sum += data[i - j];
+                }
+                smaArray.push(sum / period);
+            }
+        }
+        return smaArray;
+    }
+
+    function calculateRSI(closes, period = 14) {
+        let gains = 0;
+        let losses = 0;
+        let rsiArray = new Array(closes.length).fill(null);
+
+        for (let i = 1; i <= period; i++) {
+            let change = closes[i] - closes[i - 1];
+            if (change > 0) gains += change;
+            else losses -= change;
+        }
+        let avgGain = gains / period;
+        let avgLoss = losses / period;
+
+        if (avgLoss === 0) rsiArray[period] = 100;
+        else {
+            let rs = avgGain / avgLoss;
+            rsiArray[period] = 100 - (100 / (1 + rs));
+        }
+
+        for (let i = period + 1; i < closes.length; i++) {
+            let change = closes[i] - closes[i - 1];
+            let gain = change > 0 ? change : 0;
+            let loss = change < 0 ? -change : 0;
+
+            avgGain = (avgGain * (period - 1) + gain) / period;
+            avgLoss = (avgLoss * (period - 1) + loss) / period;
+
+            if (avgLoss === 0) {
+                rsiArray[i] = 100;
+            } else {
+                let rs = avgGain / avgLoss;
+                rsiArray[i] = 100 - (100 / (1 + rs));
+            }
+        }
+        return rsiArray;
+    }
+
+    async function generateRealSignal() {
+        let btn = document.getElementById('sigBtn');
+        let resultDiv = document.getElementById('signalResult');
+        
+        btn.disabled = true;
+        btn.innerText = "Analiz Ediliyor...";
+        resultDiv.style.display = "none";
+
+        try {
+            let res = await fetch('https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=' + currentApiTf + '&limit=100');
+            let rows = await res.json();
+
+            let closes = rows.map(r => parseFloat(r[4]));
+            
+            let rsiArr = calculateRSI(closes, 14);
+            let ema20Arr = calculateEMA(closes, 20);
+            let sma50Arr = calculateSMA(closes, 50);
+
+            let ema12Arr = calculateEMA(closes, 12);
+            let ema26Arr = calculateEMA(closes, 26);
+            let macdArr = [];
+            for(let i=0; i<closes.length; i++) {
+                macdArr.push(ema12Arr[i] - ema26Arr[i]);
+            }
+            let macdSignalArr = calculateEMA(macdArr, 9);
+
+            let curIdx = closes.length - 1;
+            let prevIdx = closes.length - 2;
+
+            let curRsi = rsiArr[curIdx];
+            let curEma20 = ema20Arr[curIdx];
+            let curSma50 = sma50Arr[curIdx];
+            
+            let prevMacd = macdArr[prevIdx];
+            let prevSignal = macdSignalArr[prevIdx];
+            let curMacd = macdArr[curIdx];
+            let curSignal = macdSignalArr[curIdx];
+
+            let bullishCross = (prevMacd <= prevSignal && curMacd > curSignal);
+            let bearishCross = (prevMacd >= prevSignal && curMacd < curSignal);
+
+            resultDiv.style.display = "block";
+
+            if (curRsi < 30 && curEma20 > curSma50 && bullishCross) {
+                resultDiv.className = "signal-result signal-buy";
+                resultDiv.innerHTML = "🟢 <b>AL (YÜKSELİŞ) KOŞULU OLUŞTU!</b><br>Zaman Dilimi: " + currentApiTf + "<br>RSI: " + curRsi.toFixed(2) + " (Aşırı Satım)<br>MACD Kesişimi Yukarı Yönlü";
+            } else if (curRsi > 70 && curEma20 < curSma50 && bearishCross) {
+                resultDiv.className = "signal-result signal-sell";
+                resultDiv.innerHTML = "🔴 <b>SAT (DÜŞÜŞ) KOŞULU OLUŞTU!</b><br>Zaman Dilimi: " + currentApiTf + "<br>RSI: " + curRsi.toFixed(2) + " (Aşırı Alım)<br>MACD Kesişimi Aşağı Yönlü";
+            } else {
+                resultDiv.className = "signal-result signal-neutral";
+                resultDiv.innerHTML = "🟡 <b>NET AL/SAT KOŞULU YOK</b><br>Zaman Dilimi: " + currentApiTf + "<br>RSI: " + curRsi.toFixed(2) + " | EMA/SMA ve MACD şartları henüz tam birleşmedi.";
+            }
+
+        } catch (e) {
+            resultDiv.style.display = "block";
+            resultDiv.className = "signal-result signal-neutral";
+            resultDiv.innerHTML = "❌ Veri alınırken bir hata oluştu, tekrar dene.";
+        }
+
+        btn.disabled = false;
+        btn.innerText = "Canlı Sinyal Oluştur";
+    }
+
+    initChart("1");
+    setInterval(fetchPrice, 3000);
+    fetchPrice();
+
+    let tg = window.Telegram.WebApp;
+    if (tg && tg.expand) {
+        tg.expand();
+    }
+</script>
+
+</body>
+</html>
